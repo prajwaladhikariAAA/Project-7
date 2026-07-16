@@ -11,6 +11,11 @@ from pdf_statement_converter import convert
 result = convert("statement.pdf", "statement.csv")
 print(len(result.rows), "transactions ->", result.csv_path)
 print(result.csv_text)          # also available in-memory
+
+# Balance verification runs by default (see below)
+if result.balance_check and not result.balance_check.ok:
+    for d in result.balance_check.discrepancies:
+        print("mismatch:", d.date, d.description, "off by", d.difference)
 ```
 
 CSV columns: `date,description,amount,balance,currency`.
@@ -22,6 +27,19 @@ CSV columns: `date,description,amount,balance,currency`.
   `-45.00`, `(45.00)`, or `45.00 DR`.
 - **Layouts**: `strategy="auto"` tries table extraction first (incl. separate
   debit/credit columns) and falls back to line-based text parsing.
+- **Date per line OR grouped by date**: with `carry_date=True` (default), a date
+  that appears once is carried to the transactions listed under it; summary/total
+  lines are skipped. Set `carry_date=False` for per-line-date statements that
+  over-capture footer lines.
+
+## Balance verification (accuracy)
+
+By default `convert()` verifies the running balance: for each row,
+`previous_balance + amount` must equal the row's `balance`. Results are on
+`result.balance_check` (`.ok`, `.checked`, `.discrepancies`); pass
+`opening_balance=Money.of("5000.00")` to also verify the first row. This catches
+wrong signs, mis-parsed amounts, and missed/duplicated rows. Run it standalone with
+`verify_balances(rows, opening_balance=...)`.
 
 ## Errors
 

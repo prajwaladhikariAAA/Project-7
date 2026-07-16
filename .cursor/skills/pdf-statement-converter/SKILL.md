@@ -21,9 +21,23 @@ result.csv_path    # Path written to, or None
 ```
 
 Tuning knobs: `strategy` (`"auto"` | `"table"` | `"text"`), `currency`,
-`dayfirst=True` (for DD/MM dates), `date_formats=[...]`, `pages=[0, 1]`.
+`dayfirst=True` (for DD/MM dates), `date_formats=[...]`, `pages=[0, 1]`,
+`carry_date` (default True), `verify` (default True), `opening_balance`.
 
 CSV columns: `date,description,amount,balance,currency`.
+
+## Layouts and balance verification
+
+- **Grouped by date**: statements that show a date once and list several
+  transactions under it are handled via `carry_date=True` (the default); the last
+  seen date carries to following lines/blank date cells, and summary/total lines are
+  skipped. Disable with `carry_date=False` for per-line-date statements that
+  over-capture footers.
+- **Accuracy check**: `convert(verify=True)` (default) reconciles the running
+  balance (`prev_balance + amount == balance`) and reports issues on
+  `result.balance_check` (`.ok`, `.checked`, `.discrepancies` with
+  `expected/actual/difference`). Pass `opening_balance` to also check the first row.
+  Standalone: `verify_balances(rows, opening_balance=...)` in `verification.py`.
 
 ## Architecture (keep this split)
 

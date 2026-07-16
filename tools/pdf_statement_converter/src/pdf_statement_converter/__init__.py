@@ -6,6 +6,7 @@ from accounting_core import Tool
 
 from .converter import ConversionResult, convert, to_csv
 from .parsing import StatementRow, parse_tables, parse_text
+from .verification import BalanceCheck, BalanceDiscrepancy, verify_balances
 
 __all__ = [
     "convert",
@@ -14,6 +15,9 @@ __all__ = [
     "StatementRow",
     "parse_text",
     "parse_tables",
+    "verify_balances",
+    "BalanceCheck",
+    "BalanceDiscrepancy",
     "get_tool",
 ]
 

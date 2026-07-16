@@ -7,7 +7,10 @@ import io
 from dataclasses import dataclass
 from pathlib import Path
 
+from accounting_core import Money
+
 from .parsing import StatementRow, parse_tables, parse_text
+from .verification import BalanceCheck, verify_balances
 
 CSV_HEADER = ["date", "description", "amount", "balance", "currency"]
 
@@ -19,6 +22,7 @@ class ConversionResult:
     rows: list[StatementRow]
     csv_text: str
     csv_path: Path | None = None
+    balance_check: BalanceCheck | None = None
 
 
 def to_csv(rows: list[StatementRow]) -> str:
@@ -46,12 +50,21 @@ def convert(
     date_formats: list[str] | None = None,
     dayfirst: bool = False,
     pages: list[int] | None = None,
+    carry_date: bool = True,
+    verify: bool = True,
+    opening_balance: Money | None = None,
 ) -> ConversionResult:
     """Convert a bank-statement PDF to CSV, entirely on the local machine.
 
     ``strategy`` is one of ``"auto"`` (tables first, then text), ``"table"``, or
     ``"text"``. When ``csv_path`` is given the CSV is written there; the CSV text
     is always returned in :class:`ConversionResult` as well.
+
+    ``carry_date`` handles statements that group several transactions under one
+    date (see :func:`parse_text`). When ``verify`` is true (default), the running
+    balance is checked against the amounts and reported in
+    ``ConversionResult.balance_check`` — pass ``opening_balance`` to also verify the
+    first row.
     """
     if strategy not in {"auto", "table", "text"}:
         raise ValueError(
@@ -94,6 +107,7 @@ def convert(
                     currency=currency,
                     date_formats=date_formats,
                     dayfirst=dayfirst,
+                    carry_date=carry_date,
                 )
 
             if not page_rows and strategy in {"auto", "text"}:
@@ -103,6 +117,7 @@ def convert(
                     currency=currency,
                     date_formats=date_formats,
                     dayfirst=dayfirst,
+                    carry_date=carry_date,
                 )
 
             rows.extend(page_rows)
@@ -113,4 +128,9 @@ def convert(
         out_path = Path(csv_path)
         out_path.write_text(csv_text, encoding="utf-8")
 
-    return ConversionResult(rows=rows, csv_text=csv_text, csv_path=out_path)
+    balance_check = (
+        verify_balances(rows, opening_balance=opening_balance) if verify else None
+    )
+    return ConversionResult(
+        rows=rows, csv_text=csv_text, csv_path=out_path, balance_check=balance_check
+    )

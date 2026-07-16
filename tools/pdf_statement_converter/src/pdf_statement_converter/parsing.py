@@ -104,6 +104,48 @@ def extract_leading_date(
     return None
 
 
+# Lines that start with these (case-insensitive) are treated as summary/section
+# noise rather than transactions when a date is being carried forward.
+_SUMMARY_PREFIXES = (
+    "total",
+    "subtotal",
+    "sub total",
+    "opening balance",
+    "closing balance",
+    "balance brought forward",
+    "balance carried forward",
+    "brought forward",
+    "carried forward",
+    "statement",
+    "page ",
+    "continued",
+)
+
+
+def _looks_like_summary(text: str) -> bool:
+    low = text.strip().lower()
+    return low.startswith(_SUMMARY_PREFIXES)
+
+
+def _row_from_text(
+    txn_date: date, text: str, currency: str
+) -> StatementRow | None:
+    """Build a row from the text following a date (or a carried-date line)."""
+    first = _AMOUNT_RE.search(text)
+    if first is None:
+        return None
+    amounts = _AMOUNT_RE.findall(text)
+
+    description = text[: first.start()].strip()
+    try:
+        amount = parse_amount(amounts[0], currency)
+        balance = parse_amount(amounts[-1], currency) if len(amounts) >= 2 else None
+    except InvalidOperation:
+        return None
+
+    return StatementRow(txn_date, description, amount, balance)
+
+
 def parse_line(
     line: str,
     *,
@@ -116,21 +158,7 @@ def parse_line(
     if found is None:
         return None
     txn_date, rest = found
-
-    amounts = _AMOUNT_RE.findall(rest)
-    if not amounts:
-        return None
-    first = _AMOUNT_RE.search(rest)
-    assert first is not None  # findall matched, so search must too
-
-    description = rest[: first.start()].strip()
-    try:
-        amount = parse_amount(amounts[0], currency)
-        balance = parse_amount(amounts[-1], currency) if len(amounts) >= 2 else None
-    except InvalidOperation:
-        return None
-
-    return StatementRow(txn_date, description, amount, balance)
+    return _row_from_text(txn_date, rest, currency)
 
 
 def parse_text(
@@ -139,15 +167,34 @@ def parse_text(
     currency: str = "USD",
     date_formats: list[str] | None = None,
     dayfirst: bool = False,
+    carry_date: bool = True,
 ) -> list[StatementRow]:
-    """Parse every transaction line found in ``lines``."""
+    """Parse every transaction found in ``lines``.
+
+    Handles two common layouts:
+
+    - **Date per line** — each transaction line starts with its own date.
+    - **Grouped by date** — a date appears once and following lines omit it. With
+      ``carry_date=True`` (default) the last seen date is applied to subsequent
+      transaction lines. Lines that look like summaries/totals are skipped so they
+      are not mistaken for transactions. Set ``carry_date=False`` if a per-line-date
+      statement over-captures footer/total lines.
+    """
     rows: list[StatementRow] = []
+    last_date: date | None = None
     for line in lines:
-        row = parse_line(
-            line, currency=currency, date_formats=date_formats, dayfirst=dayfirst
+        found = extract_leading_date(
+            line, date_formats=date_formats, dayfirst=dayfirst
         )
-        if row is not None:
-            rows.append(row)
+        if found is not None:
+            last_date, rest = found
+            row = _row_from_text(last_date, rest, currency)
+            if row is not None:
+                rows.append(row)
+        elif carry_date and last_date is not None and not _looks_like_summary(line):
+            row = _row_from_text(last_date, line, currency)
+            if row is not None:
+                rows.append(row)
     return rows
 
 
@@ -184,11 +231,14 @@ def parse_tables(
     currency: str = "USD",
     date_formats: list[str] | None = None,
     dayfirst: bool = False,
+    carry_date: bool = True,
 ) -> list[StatementRow]:
     """Parse rows from extracted tables using header detection.
 
     Supports a single ``amount`` column or separate ``debit``/``credit`` columns
-    (amount = credit - debit).
+    (amount = credit - debit). With ``carry_date=True`` (default), rows whose date
+    cell is blank inherit the previous row's date, handling statements that group
+    several transactions under one date.
     """
     rows: list[StatementRow] = []
     for table in tables:
@@ -200,23 +250,31 @@ def parse_tables(
         ):
             continue
 
+        last_date: date | None = None
         for raw in table[1:]:
             cells = [(c or "").strip() for c in raw]
 
             found = extract_leading_date(
                 _cell(cells, cols, "date"), date_formats=date_formats, dayfirst=dayfirst
             )
-            if found is None:
+            if found is not None:
+                last_date = found[0]
+            elif not (carry_date and last_date is not None):
                 continue
-            txn_date = found[0]
+            txn_date = last_date
+            assert txn_date is not None
+
+            amount_cell = _cell(cells, cols, "amount")
+            debit_cell = _cell(cells, cols, "debit")
+            credit_cell = _cell(cells, cols, "credit")
+            if not (amount_cell or debit_cell or credit_cell):
+                continue  # blank / continuation row with no movement
 
             zero = Money.of("0", currency)
             try:
-                if "amount" in cols and _cell(cells, cols, "amount"):
-                    amount = parse_amount(_cell(cells, cols, "amount"), currency)
+                if "amount" in cols and amount_cell:
+                    amount = parse_amount(amount_cell, currency)
                 else:
-                    debit_cell = _cell(cells, cols, "debit")
-                    credit_cell = _cell(cells, cols, "credit")
                     debit = parse_amount(debit_cell, currency) if debit_cell else zero
                     credit = parse_amount(credit_cell, currency) if credit_cell else zero
                     amount = credit - debit
