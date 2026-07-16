@@ -26,6 +26,7 @@ tools/ledger_reconciler/      # bank vs. ledger reconciliation
 tools/tax_calculator/         # sales tax / VAT
 tools/pdf_statement_converter/# bank-statement PDF -> CSV (offline)
 apps/web/                     # FastAPI web UI for the PDF converter (upload -> export)
+standalone/                   # single-file, offline browser app (no server) for the converter
 .cursor/skills/               # one skill per tool + create-accounting-tool meta-skill
 ```
 
@@ -53,6 +54,10 @@ Run the web app (PDF → CSV/JSON in the browser):
 ```bash
 uv run statement-web           # http://127.0.0.1:8000
 ```
+
+Prefer no server at all? Open `standalone/statement_converter.html` directly in a
+browser — a single, offline file that does everything client-side. Rebuild it with
+`python standalone/build.py`. See `standalone/README.md`.
 
 ## Adding a new tool
 

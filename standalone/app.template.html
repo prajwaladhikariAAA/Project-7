@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Statement Converter (Standalone) — PDF to CSV</title>
+  <style>
+    :root {
+      --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+      --brand:#4f46e5; --brand-600:#4338ca;
+      --ok-bg:#ecfdf5; --ok-ink:#047857; --ok-line:#a7f3d0;
+      --bad-bg:#fef2f2; --bad-ink:#b91c1c; --bad-line:#fecaca;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      color:var(--ink); background:linear-gradient(160deg,#1e1b4b 0%,#0f172a 45%,#020617 100%);
+      min-height:100vh; padding:40px 16px; }
+    .wrap { max-width:960px; margin:0 auto; }
+    header { text-align:center; color:#e2e8f0; margin-bottom:24px; }
+    header h1 { margin:0 0 6px; font-size:30px; letter-spacing:-0.5px; }
+    header p { margin:0; color:#94a3b8; }
+    header .pill { display:inline-block; margin-top:12px; font-size:12px; color:#c7d2fe;
+      background:rgba(79,70,229,.22); border:1px solid rgba(129,140,248,.4); padding:4px 12px; border-radius:999px; }
+    .card { background:var(--card); border-radius:16px; padding:24px; box-shadow:0 20px 45px -20px rgba(2,6,23,.7); margin-bottom:22px; }
+    .drop { border:2px dashed #c7cbe0; border-radius:14px; padding:34px 20px; text-align:center; cursor:pointer; transition:.15s; background:#f8fafc; }
+    .drop:hover,.drop.drag { border-color:var(--brand); background:#eef2ff; }
+    .drop strong { color:var(--brand); }
+    .drop .file { margin-top:10px; font-size:14px; color:var(--muted); }
+    .options { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-top:20px; }
+    label { display:block; font-size:13px; font-weight:600; color:#334155; margin-bottom:6px; }
+    select,input[type=text] { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-size:14px; color:var(--ink); background:#fff; }
+    .check { display:flex; align-items:center; gap:8px; margin-top:28px; }
+    .check input { width:18px; height:18px; accent-color:var(--brand); }
+    .check label { margin:0; }
+    .actions { display:flex; gap:12px; margin-top:22px; flex-wrap:wrap; }
+    button { border:0; border-radius:10px; padding:12px 20px; font-size:14px; font-weight:600; cursor:pointer; transition:.15s; }
+    .primary { background:var(--brand); color:#fff; }
+    .primary:hover { background:var(--brand-600); }
+    .primary:disabled { opacity:.55; cursor:not-allowed; }
+    .ghost { background:#eef2ff; color:var(--brand-600); }
+    .ghost:hover { background:#e0e7ff; }
+    .ghost:disabled { opacity:.5; cursor:not-allowed; }
+    .status { margin-top:14px; font-size:13px; color:var(--muted); }
+    .banner { padding:14px 16px; border-radius:12px; font-size:14px; margin-bottom:18px; border:1px solid; }
+    .banner.ok { background:var(--ok-bg); color:var(--ok-ink); border-color:var(--ok-line); }
+    .banner.bad,.banner.err { background:var(--bad-bg); color:var(--bad-ink); border-color:var(--bad-line); }
+    .banner ul { margin:8px 0 0; padding-left:18px; }
+    .summary { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
+    .summary h2 { margin:0; font-size:18px; }
+    .summary .count { color:var(--muted); font-size:14px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th,td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); }
+    th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+    td.num,th.num { text-align:right; font-variant-numeric:tabular-nums; }
+    tr:last-child td { border-bottom:0; }
+    .neg { color:#b91c1c; } .pos { color:#047857; }
+    .hidden { display:none; }
+    .spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,.5); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-3px; margin-right:8px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    footer { text-align:center; color:#64748b; font-size:13px; margin-top:6px; }
+    footer code { color:#94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Statement Converter</h1>
+      <p>Convert a bank-statement PDF into a clean CSV — with automatic balance verification.</p>
+      <span class="pill">100% offline · single file · nothing is uploaded anywhere</span>
+    </header>
+
+    <div class="card">
+      <div id="drop" class="drop">
+        <div>Drop a bank-statement <strong>PDF</strong> here, or <strong>click to browse</strong></div>
+        <div id="fileName" class="file">No file selected</div>
+        <input id="fileInput" type="file" accept="application/pdf,.pdf" class="hidden" />
+      </div>
+
+      <div class="options">
+        <div>
+          <label for="currency">Currency</label>
+          <input id="currency" type="text" value="USD" maxlength="3" />
+        </div>
+        <div>
+          <label for="opening">Opening balance (optional)</label>
+          <input id="opening" type="text" placeholder="e.g. 0.00" />
+        </div>
+        <div class="check">
+          <input id="dayfirst" type="checkbox" />
+          <label for="dayfirst">Day-first dates (DD/MM)</label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="convertBtn" class="primary" disabled>Convert</button>
+        <button id="csvBtn" class="ghost" disabled>Download CSV</button>
+        <button id="jsonBtn" class="ghost" disabled>Download JSON</button>
+      </div>
+      <div id="status" class="status">Loading PDF engine…</div>
+    </div>
+
+    <div id="results" class="card hidden">
+      <div id="banner"></div>
+      <div class="summary">
+        <h2>Transactions</h2>
+        <span id="count" class="count"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Description</th><th class="num">Amount</th><th class="num">Balance</th><th>Ccy</th></tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer>Standalone build · parsing by the <code>pdf_statement_converter</code> logic · PDF reading by pdf.js</footer>
+  </div>
+
+  <script>/*__PARSER_JS__*/</script>
+  <script>
+    var PDF_MAIN_B64 = "__PDF_MAIN_B64__";
+    var PDF_WORKER_B64 = "__PDF_WORKER_B64__";
+  </script>
+  <script>
+  (function () {
+    "use strict";
+    var P = globalThis.StatementParser;
+    var $ = function (id) { return document.getElementById(id); };
+    var selectedFile = null, lastRows = null, lastCsv = null, ready = false;
+
+    function b64ToText(b64) {
+      var bin = atob(b64);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new TextDecoder("utf-8").decode(bytes);
+    }
+
+    // Load the bundled pdf.js engine from an in-memory blob (works offline / file://).
+    var mainBlob = new Blob([b64ToText(PDF_MAIN_B64)], { type: "text/javascript" });
+    var script = document.createElement("script");
+    script.onload = function () {
+      var workerBlob = new Blob([b64ToText(PDF_WORKER_B64)], { type: "text/javascript" });
+      globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(workerBlob);
+      ready = true;
+      $("status").textContent = "Ready — choose a PDF to begin.";
+      updateConvert();
+    };
+    script.onerror = function () { $("status").textContent = "Failed to load the PDF engine."; };
+    script.src = URL.createObjectURL(mainBlob);
+    document.head.appendChild(script);
+
+    function updateConvert() { $("convertBtn").disabled = !(ready && selectedFile); }
+
+    function setFile(f) {
+      selectedFile = f;
+      $("fileName").textContent = f ? f.name : "No file selected";
+      updateConvert();
+    }
+
+    var drop = $("drop"), fileInput = $("fileInput");
+    drop.addEventListener("click", function () { fileInput.click(); });
+    fileInput.addEventListener("change", function (e) { setFile(e.target.files[0] || null); });
+    ["dragover", "dragenter"].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("drag"); });
+    });
+    ["dragleave", "drop"].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("drag"); });
+    });
+    drop.addEventListener("drop", function (e) { var f = e.dataTransfer.files[0]; if (f) setFile(f); });
+
+    function baseName() { return (selectedFile ? selectedFile.name : "statement.pdf").replace(/\.pdf$/i, ""); }
+    function download(name, text, type) {
+      var blob = new Blob([text], { type: type });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = name; document.body.appendChild(a);
+      a.click(); a.remove(); URL.revokeObjectURL(url);
+    }
+    $("csvBtn").addEventListener("click", function () { if (lastCsv != null) download(baseName() + ".csv", lastCsv, "text/csv"); });
+    $("jsonBtn").addEventListener("click", function () {
+      if (lastRows) {
+        var out = lastRows.map(function (r) {
+          return { date: r.date, description: r.description, amount: P.fmt(r.amount),
+                   balance: r.balance === null ? null : P.fmt(r.balance) };
+        });
+        download(baseName() + ".json", JSON.stringify(out, null, 2), "application/json");
+      }
+    });
+
+    // Reconstruct text lines from a pdf.js page's positioned text items.
+    async function extractLines(pdf) {
+      var lines = [];
+      for (var p = 1; p <= pdf.numPages; p++) {
+        var page = await pdf.getPage(p);
+        var content = await page.getTextContent();
+        var buckets = [];
+        content.items.forEach(function (item) {
+          if (!item.str) return;
+          var y = Math.round(item.transform[5]);
+          var bucket = null;
+          for (var i = 0; i < buckets.length; i++) {
+            if (Math.abs(buckets[i].y - y) <= 2) { bucket = buckets[i]; break; }
+          }
+          if (!bucket) { bucket = { y: y, items: [] }; buckets.push(bucket); }
+          bucket.items.push(item);
+        });
+        buckets.sort(function (a, b) { return b.y - a.y; });
+        buckets.forEach(function (bucket) {
+          bucket.items.sort(function (a, b) { return a.transform[4] - b.transform[4]; });
+          var line = "", prevEnd = null;
+          bucket.items.forEach(function (it) {
+            var x = it.transform[4];
+            if (prevEnd !== null && x - prevEnd > 1) line += " ";
+            line += it.str;
+            prevEnd = x + (it.width || 0);
+          });
+          lines.push(line);
+        });
+      }
+      return lines;
+    }
+
+    function showError(msg) {
+      $("results").classList.remove("hidden");
+      $("banner").className = "banner err";
+      $("banner").innerHTML = "<strong>Error:</strong> " + msg;
+      $("count").textContent = ""; $("tbody").innerHTML = "";
+      $("csvBtn").disabled = true; $("jsonBtn").disabled = true;
+    }
+
+    function render(rows, currency, openingCents) {
+      lastRows = rows;
+      lastCsv = P.toCSV(rows, currency);
+      $("results").classList.remove("hidden");
+      $("count").textContent = rows.length + " transaction" + (rows.length === 1 ? "" : "s");
+
+      var bc = P.verifyBalances(rows, openingCents);
+      var banner = $("banner");
+      if (rows.length === 0) {
+        banner.className = "banner err";
+        banner.textContent = "No transactions were recognized in this PDF. Try the day-first option, or the file may be scanned (image-only).";
+      } else if (bc.ok) {
+        banner.className = "banner ok";
+        banner.innerHTML = "\u2713 Balance verified — " + bc.checked + " running-balance checks reconciled.";
+      } else {
+        banner.className = "banner bad";
+        var html = "\u26a0 Balance check found " + bc.discrepancies.length + " discrepancy(ies) across " + bc.checked + " checks:<ul>";
+        bc.discrepancies.forEach(function (d) {
+          html += "<li>Row " + d.index + " (" + d.date + ", " + (d.description || "\u2014") + "): expected " +
+            P.fmt(d.expected) + ", got " + P.fmt(d.actual) + " (off by " + P.fmt(d.difference) + ")</li>";
+        });
+        banner.innerHTML = html + "</ul>";
+      }
+
+      var tbody = $("tbody"); tbody.innerHTML = "";
+      rows.forEach(function (r) {
+        var tr = document.createElement("tr");
+        tr.innerHTML = "<td>" + r.date + "</td><td>" + (r.description || "") + "</td>" +
+          "<td class='num " + (r.amount < 0 ? "neg" : "pos") + "'>" + P.fmt(r.amount) + "</td>" +
+          "<td class='num'>" + (r.balance === null ? "" : P.fmt(r.balance)) + "</td>" +
+          "<td>" + currency + "</td>";
+        tbody.appendChild(tr);
+      });
+      var has = rows.length > 0;
+      $("csvBtn").disabled = !has; $("jsonBtn").disabled = !has;
+    }
+
+    $("convertBtn").addEventListener("click", async function () {
+      if (!selectedFile || !ready) return;
+      var btn = $("convertBtn"), original = btn.innerHTML;
+      btn.disabled = true; btn.innerHTML = "<span class='spinner'></span>Converting…";
+      try {
+        var buf = await selectedFile.arrayBuffer();
+        var pdf = await globalThis.pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+        var lines = await extractLines(pdf);
+        var dayfirst = $("dayfirst").checked;
+        var currency = ($("currency").value || "USD").trim().toUpperCase() || "USD";
+        var rows = P.parseText(lines, { dayfirst: dayfirst });
+        var openingText = $("opening").value.trim();
+        var openingCents = null;
+        if (openingText) {
+          try { openingCents = P.parseAmountCents(openingText); }
+          catch (e) { showError("Invalid opening balance: " + openingText); return; }
+        }
+        render(rows, currency, openingCents);
+      } catch (err) {
+        showError((err && err.message) ? err.message : String(err));
+      } finally {
+        btn.innerHTML = original; btn.disabled = false;
+      }
+    });
+  })();
+  </script>
+</body>
+</html>
