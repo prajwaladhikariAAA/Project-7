@@ -9,6 +9,7 @@ dependencies = [
     "ledger-reconciler",
     "tax-calculator",
     "pdf-statement-converter",
+    "statement-web",
 ]
 
 # The workspace root is not a distributable package itself; it only ties the
@@ -17,7 +18,7 @@ dependencies = [
 package = false
 
 [tool.uv.workspace]
-members = ["packages/*", "tools/*"]
+members = ["packages/*", "tools/*", "apps/*"]
 
 # Every workspace member resolves to its local source, so tools can depend on
 # one another (or on the shared core) without publishing to a registry.
@@ -26,6 +27,7 @@ accounting-core = { workspace = true }
 ledger-reconciler = { workspace = true }
 tax-calculator = { workspace = true }
 pdf-statement-converter = { workspace = true }
+statement-web = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -33,6 +35,8 @@ dev = [
     "ruff>=0.6.0",
     # Used only to generate a sample PDF for the converter's integration test.
     "reportlab>=4.0",
+    # Used by FastAPI's TestClient for the web app tests.
+    "httpx>=0.27",
 ]
 
 [tool.ruff]
@@ -43,6 +47,10 @@ extend-exclude = [".venv"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+# FastAPI relies on calls like File()/Form()/Depends() in argument defaults.
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.File", "fastapi.Form", "fastapi.Depends", "fastapi.Query"]
+
 [tool.pytest.ini_options]
 addopts = "-ra"
-testpaths = ["packages", "tools"]
+testpaths = ["packages", "tools", "apps"]

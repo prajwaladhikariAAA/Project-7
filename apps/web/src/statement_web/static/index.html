@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Statement Converter — PDF to CSV</title>
+  <style>
+    :root {
+      --bg: #0f172a; --card: #ffffff; --ink: #0f172a; --muted: #64748b;
+      --line: #e2e8f0; --brand: #4f46e5; --brand-600: #4338ca;
+      --ok-bg: #ecfdf5; --ok-ink: #047857; --ok-line: #a7f3d0;
+      --bad-bg: #fef2f2; --bad-ink: #b91c1c; --bad-line: #fecaca;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background: linear-gradient(160deg, #1e1b4b 0%, #0f172a 45%, #020617 100%);
+      min-height: 100vh; padding: 40px 16px;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; }
+    header { text-align: center; color: #e2e8f0; margin-bottom: 28px; }
+    header h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -0.5px; }
+    header p { margin: 0; color: #94a3b8; }
+    header .pill {
+      display: inline-block; margin-top: 12px; font-size: 12px; color: #c7d2fe;
+      background: rgba(79,70,229,.22); border: 1px solid rgba(129,140,248,.4);
+      padding: 4px 12px; border-radius: 999px;
+    }
+    .card {
+      background: var(--card); border-radius: 16px; padding: 24px;
+      box-shadow: 0 20px 45px -20px rgba(2,6,23,.7); margin-bottom: 22px;
+    }
+    .drop {
+      border: 2px dashed #c7cbe0; border-radius: 14px; padding: 34px 20px;
+      text-align: center; cursor: pointer; transition: .15s; background: #f8fafc;
+    }
+    .drop:hover, .drop.drag { border-color: var(--brand); background: #eef2ff; }
+    .drop strong { color: var(--brand); }
+    .drop .file { margin-top: 10px; font-size: 14px; color: var(--muted); }
+    .options { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 20px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; }
+    select, input[type=text] {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+      font-size: 14px; color: var(--ink); background: #fff;
+    }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 28px; }
+    .check input { width: 18px; height: 18px; accent-color: var(--brand); }
+    .check label { margin: 0; }
+    .actions { display: flex; gap: 12px; margin-top: 22px; flex-wrap: wrap; }
+    button {
+      border: 0; border-radius: 10px; padding: 12px 20px; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: .15s;
+    }
+    .primary { background: var(--brand); color: #fff; }
+    .primary:hover { background: var(--brand-600); }
+    .primary:disabled { opacity: .55; cursor: not-allowed; }
+    .ghost { background: #eef2ff; color: var(--brand-600); }
+    .ghost:hover { background: #e0e7ff; }
+    .ghost:disabled { opacity: .5; cursor: not-allowed; }
+    .banner { padding: 14px 16px; border-radius: 12px; font-size: 14px; margin-bottom: 18px; border: 1px solid; }
+    .banner.ok { background: var(--ok-bg); color: var(--ok-ink); border-color: var(--ok-line); }
+    .banner.bad { background: var(--bad-bg); color: var(--bad-ink); border-color: var(--bad-line); }
+    .banner.err { background: var(--bad-bg); color: var(--bad-ink); border-color: var(--bad-line); }
+    .banner ul { margin: 8px 0 0; padding-left: 18px; }
+    .summary { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+    .summary h2 { margin: 0; font-size: 18px; }
+    .summary .count { color: var(--muted); font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tr:last-child td { border-bottom: 0; }
+    .neg { color: #b91c1c; }
+    .pos { color: #047857; }
+    .hidden { display: none; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.5);
+      border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -3px; margin-right: 8px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    footer { text-align: center; color: #64748b; font-size: 13px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Statement Converter</h1>
+      <p>Convert a bank-statement PDF into a clean CSV — with automatic balance verification.</p>
+      <span class="pill">Runs offline · your file never leaves this machine</span>
+    </header>
+
+    <div class="card">
+      <div id="drop" class="drop">
+        <div>Drop a bank-statement <strong>PDF</strong> here, or <strong>click to browse</strong></div>
+        <div id="fileName" class="file">No file selected</div>
+        <input id="fileInput" type="file" accept="application/pdf,.pdf" class="hidden" />
+      </div>
+
+      <div class="options">
+        <div>
+          <label for="strategy">Layout strategy</label>
+          <select id="strategy">
+            <option value="auto">Auto (tables, then text)</option>
+            <option value="table">Table</option>
+            <option value="text">Text</option>
+          </select>
+        </div>
+        <div>
+          <label for="currency">Currency</label>
+          <input id="currency" type="text" value="USD" maxlength="3" />
+        </div>
+        <div>
+          <label for="opening">Opening balance (optional)</label>
+          <input id="opening" type="text" placeholder="e.g. 5000.00" />
+        </div>
+        <div class="check">
+          <input id="dayfirst" type="checkbox" />
+          <label for="dayfirst">Day-first dates (DD/MM)</label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="convertBtn" class="primary" disabled>Convert</button>
+        <button id="csvBtn" class="ghost" disabled>Download CSV</button>
+        <button id="jsonBtn" class="ghost" disabled>Download JSON</button>
+      </div>
+    </div>
+
+    <div id="results" class="card hidden">
+      <div id="banner"></div>
+      <div class="summary">
+        <h2>Transactions</h2>
+        <span id="count" class="count"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>Description</th>
+              <th class="num">Amount</th><th class="num">Balance</th><th>Ccy</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer>Powered by the <code>pdf_statement_converter</code> tool</footer>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const drop = $("drop"), fileInput = $("fileInput");
+    let selectedFile = null, lastResult = null;
+
+    function setFile(f) {
+      selectedFile = f;
+      $("fileName").textContent = f ? f.name : "No file selected";
+      $("convertBtn").disabled = !f;
+    }
+
+    drop.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => setFile(e.target.files[0] || null));
+    ["dragover", "dragenter"].forEach(ev => drop.addEventListener(ev, (e) => {
+      e.preventDefault(); drop.classList.add("drag");
+    }));
+    ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, (e) => {
+      e.preventDefault(); drop.classList.remove("drag");
+    }));
+    drop.addEventListener("drop", (e) => {
+      const f = e.dataTransfer.files[0];
+      if (f) setFile(f);
+    });
+
+    function baseName() {
+      const n = (lastResult && lastResult.filename) || "statement.pdf";
+      return n.replace(/\.pdf$/i, "");
+    }
+    function download(name, text, type) {
+      const blob = new Blob([text], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = name; document.body.appendChild(a);
+      a.click(); a.remove(); URL.revokeObjectURL(url);
+    }
+    $("csvBtn").addEventListener("click", () => {
+      if (lastResult) download(baseName() + ".csv", lastResult.csv, "text/csv");
+    });
+    $("jsonBtn").addEventListener("click", () => {
+      if (lastResult) download(baseName() + ".json", JSON.stringify(lastResult.rows, null, 2), "application/json");
+    });
+
+    function showError(msg) {
+      $("results").classList.remove("hidden");
+      $("banner").className = "banner err";
+      $("banner").innerHTML = "<strong>Error:</strong> " + msg;
+      $("count").textContent = "";
+      $("tbody").innerHTML = "";
+    }
+
+    function render(data) {
+      lastResult = data;
+      $("results").classList.remove("hidden");
+      $("count").textContent = data.count + " transaction" + (data.count === 1 ? "" : "s");
+
+      const bc = data.balance_check;
+      const banner = $("banner");
+      if (!bc) {
+        banner.className = "banner"; banner.textContent = "";
+      } else if (bc.ok) {
+        banner.className = "banner ok";
+        banner.innerHTML = "✓ Balance verified — " + bc.checked + " running-balance checks reconciled.";
+      } else {
+        banner.className = "banner bad";
+        let html = "⚠ Balance check found " + bc.discrepancies.length +
+          " discrepancy(ies) across " + bc.checked + " checks:<ul>";
+        bc.discrepancies.forEach(d => {
+          html += "<li>Row " + d.index + " (" + d.date + ", " + (d.description || "—") +
+            "): expected " + d.expected + ", got " + d.actual + " (off by " + d.difference + ")</li>";
+        });
+        banner.innerHTML = html + "</ul>";
+      }
+
+      const tbody = $("tbody");
+      tbody.innerHTML = "";
+      data.rows.forEach(r => {
+        const tr = document.createElement("tr");
+        const amt = parseFloat(r.amount);
+        tr.innerHTML =
+          "<td>" + r.date + "</td>" +
+          "<td>" + (r.description || "") + "</td>" +
+          "<td class='num " + (amt < 0 ? "neg" : "pos") + "'>" + r.amount + "</td>" +
+          "<td class='num'>" + (r.balance === null ? "" : r.balance) + "</td>" +
+          "<td>" + r.currency + "</td>";
+        tbody.appendChild(tr);
+      });
+
+      const has = data.rows.length > 0;
+      $("csvBtn").disabled = !has;
+      $("jsonBtn").disabled = !has;
+    }
+
+    $("convertBtn").addEventListener("click", async () => {
+      if (!selectedFile) return;
+      const btn = $("convertBtn");
+      btn.disabled = true;
+      const original = btn.innerHTML;
+      btn.innerHTML = "<span class='spinner'></span>Converting…";
+
+      const form = new FormData();
+      form.append("file", selectedFile);
+      form.append("strategy", $("strategy").value);
+      form.append("currency", $("currency").value || "USD");
+      form.append("dayfirst", $("dayfirst").checked ? "true" : "false");
+      form.append("opening_balance", $("opening").value.trim());
+
+      try {
+        const res = await fetch("/api/convert", { method: "POST", body: form });
+        const data = await res.json();
+        if (!res.ok) { showError(data.detail || ("HTTP " + res.status)); }
+        else { render(data); }
+      } catch (err) {
+        showError(err.message || String(err));
+      } finally {
+        btn.innerHTML = original; btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

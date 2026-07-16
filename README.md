@@ -21,11 +21,16 @@ with a **`uv` workspace**:
   it changes.
 
 ```
-packages/core/            # accounting-core: Money, models, ToolRegistry
-tools/ledger_reconciler/  # bank vs. ledger reconciliation
-tools/tax_calculator/     # sales tax / VAT
-.cursor/skills/           # one skill per tool + create-accounting-tool meta-skill
+packages/core/                # accounting-core: Money, models, ToolRegistry
+tools/ledger_reconciler/      # bank vs. ledger reconciliation
+tools/tax_calculator/         # sales tax / VAT
+tools/pdf_statement_converter/# bank-statement PDF -> CSV (offline)
+apps/web/                     # FastAPI web UI for the PDF converter (upload -> export)
+.cursor/skills/               # one skill per tool + create-accounting-tool meta-skill
 ```
+
+`apps/` holds user-facing applications that compose tools; `tools/` holds the
+business logic; `packages/` holds shared building blocks.
 
 ## Getting started
 
@@ -41,6 +46,12 @@ Discover every installed tool through the shared registry:
 
 ```bash
 uv run python -c "from accounting_core import load_installed_tools as l; print([t.name for t in l().all()])"
+```
+
+Run the web app (PDF → CSV/JSON in the browser):
+
+```bash
+uv run statement-web           # http://127.0.0.1:8000
 ```
 
 ## Adding a new tool
