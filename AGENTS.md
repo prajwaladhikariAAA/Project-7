@@ -7,10 +7,10 @@ workspace monorepo**:
 
 - `packages/core/` — `accounting-core`: shared `Money`, domain models, and the
   `ToolRegistry` that links tools together.
-- `tools/<tool>/` — one standalone package per tool (currently `ledger_reconciler`
-  and `tax_calculator`). Each depends on `accounting-core` and registers itself via
-  an `accounting.tools` entry point so `load_installed_tools()` can discover it
-  without a hard import.
+- `tools/<tool>/` — one standalone package per tool (`ledger_reconciler`,
+  `tax_calculator`, `pdf_statement_converter`). Each depends on `accounting-core`
+  and registers itself via an `accounting.tools` entry point so
+  `load_installed_tools()` can discover it without a hard import.
 - `.cursor/skills/` — a Cursor skill per tool plus the `create-accounting-tool`
   meta-skill describing how to scaffold new tools + skills.
 

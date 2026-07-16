@@ -8,6 +8,7 @@ dependencies = [
     "accounting-core",
     "ledger-reconciler",
     "tax-calculator",
+    "pdf-statement-converter",
 ]
 
 # The workspace root is not a distributable package itself; it only ties the
@@ -24,11 +25,14 @@ members = ["packages/*", "tools/*"]
 accounting-core = { workspace = true }
 ledger-reconciler = { workspace = true }
 tax-calculator = { workspace = true }
+pdf-statement-converter = { workspace = true }
 
 [dependency-groups]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6.0",
+    # Used only to generate a sample PDF for the converter's integration test.
+    "reportlab>=4.0",
 ]
 
 [tool.ruff]
