@@ -1,0 +1,22 @@
+[project]
+name = "ledger-reconciler"
+version = "0.1.0"
+description = "Reconcile bank statement transactions against the general ledger."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["accounting-core"]
+
+# Advertise this tool to accounting-core's registry so it can be discovered
+# without a hard import. Adding a tool here is all it takes to "link" it.
+[project.entry-points."accounting.tools"]
+ledger_reconciler = "ledger_reconciler:get_tool"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ledger_reconciler"]
+
+[tool.uv.sources]
+accounting-core = { workspace = true }

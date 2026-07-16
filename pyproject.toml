@@ -1,0 +1,44 @@
+[project]
+name = "project-7"
+version = "0.1.0"
+description = "Data-tech tooling for accounting firms — a modular monorepo where each tool is its own package and Cursor skill."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "accounting-core",
+    "ledger-reconciler",
+    "tax-calculator",
+]
+
+# The workspace root is not a distributable package itself; it only ties the
+# members together so they can be developed and linked from one virtualenv.
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*", "tools/*"]
+
+# Every workspace member resolves to its local source, so tools can depend on
+# one another (or on the shared core) without publishing to a registry.
+[tool.uv.sources]
+accounting-core = { workspace = true }
+ledger-reconciler = { workspace = true }
+tax-calculator = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["packages", "tools"]
