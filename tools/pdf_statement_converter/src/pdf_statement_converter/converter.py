@@ -54,14 +54,36 @@ def convert(
     is always returned in :class:`ConversionResult` as well.
     """
     if strategy not in {"auto", "table", "text"}:
-        raise ValueError(f"Unknown strategy {strategy!r}")
+        raise ValueError(
+            f"Unknown strategy {strategy!r}; use 'auto', 'table', or 'text'"
+        )
+
+    source = Path(pdf_path)
+    if not source.is_file():
+        raise FileNotFoundError(f"PDF not found: {source}")
 
     # Imported lazily so the pure parsing logic can be used/tested without pdfplumber.
     import pdfplumber
 
+    try:
+        pdf = pdfplumber.open(str(source))
+    except Exception as exc:  # non-PDF / corrupt file -> clear, tool-level error
+        raise ValueError(f"Could not read {source} as a PDF: {exc}") from exc
+
     rows: list[StatementRow] = []
-    with pdfplumber.open(str(pdf_path)) as pdf:
-        selected = pdf.pages if pages is None else [pdf.pages[i] for i in pages]
+    with pdf:
+        if pages is None:
+            selected = pdf.pages
+        else:
+            available = len(pdf.pages)
+            out_of_range = [i for i in pages if i < 0 or i >= available]
+            if out_of_range:
+                raise IndexError(
+                    f"pages {out_of_range} out of range; "
+                    f"PDF has {available} page(s) (0-indexed)"
+                )
+            selected = [pdf.pages[i] for i in pages]
+
         for page in selected:
             page_rows: list[StatementRow] = []
 

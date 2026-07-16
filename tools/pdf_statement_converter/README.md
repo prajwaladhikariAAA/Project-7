@@ -23,8 +23,21 @@ CSV columns: `date,description,amount,balance,currency`.
 - **Layouts**: `strategy="auto"` tries table extraction first (incl. separate
   debit/credit columns) and falls back to line-based text parsing.
 
+## Errors
+
+- Missing path → `FileNotFoundError`.
+- Non-PDF / corrupt file → `ValueError("Could not read ... as a PDF: ...")`.
+- Unknown `strategy` → `ValueError`.
+- `pages` index out of range → `IndexError` naming the valid range.
+- A statement with no recognizable transactions → 0 rows and a header-only CSV.
+
 ## Known limitations
 
-Statement layouts vary widely; multi-line descriptions and scanned/image-only PDFs
-(which need OCR) are not handled. Pass `date_formats=` / `dayfirst=` / `currency=`
-to tune parsing for a specific bank.
+Statement layouts vary widely. Not handled:
+
+- **Amounts without cents** (e.g. `1,200`): ignored on purpose — requiring two
+  decimals prevents reference/account numbers from being mistaken for money.
+- **Multi-line descriptions** and **scanned/image-only PDFs** (which need OCR).
+
+Pass `date_formats=` / `dayfirst=` / `currency=` / `strategy=` / `pages=` to tune
+parsing for a specific bank.
